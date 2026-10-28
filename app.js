@@ -47,6 +47,8 @@
   const sectionCode = type => ({ Results: 'RES', Discussion: 'DIS', 'Results and Discussion': 'RAD' }[type] || 'SEC');
   const sentenceId = (doc, section, sectionIndex, paragraphIndex, sentenceIndex) =>
     `${doc.id}-${sectionCode(section.t)}-C${String(sectionIndex + 1).padStart(2, '0')}-P${String(paragraphIndex + 1).padStart(2, '0')}-S${String(sentenceIndex + 1).padStart(2, '0')}`;
+  const paragraphId = (doc, section, sectionIndex, paragraphIndex) =>
+    `${doc.id}-${sectionCode(section.t)}-C${String(sectionIndex + 1).padStart(2, '0')}-P${String(paragraphIndex + 1).padStart(2, '0')}`;
   function indexedSectionSentences(doc, section, sectionIndex) {
     const rows = [];
     section.p.forEach((paragraph, paragraphIndex) => paragraph.forEach((text, sentenceIndex) => rows.push({
@@ -56,6 +58,14 @@
     return rows.map((row, index) => ({ ...row, prev: rows[index - 1]?.text || '', next: rows[index + 1]?.text || '' }));
   }
   const documentSentenceRows = doc => doc.c.flatMap((section, sectionIndex) => indexedSectionSentences(doc, section, sectionIndex));
+  function indexedSectionParagraphs(doc, section, sectionIndex) {
+    const rows = section.p.map((sentences, paragraphIndex) => ({
+      id: paragraphId(doc, section, sectionIndex, paragraphIndex), doc, type: section.t,
+      sectionIndex, paragraphIndex, sentenceCount: sentences.length, text: sentences.join(' ')
+    }));
+    return rows.map((row, index) => ({ ...row, prev: rows[index - 1]?.text || '', next: rows[index + 1]?.text || '' }));
+  }
+  const documentParagraphRows = doc => doc.c.flatMap((section, sectionIndex) => indexedSectionParagraphs(doc, section, sectionIndex));
   const docText = doc => `${doc.t} ${doc.au} ${doc.doi} ${doc.j} ${doc.m} ${profileLabel(doc._tags.label)} ${doc._tags.evaluation_dimensions.map(dimensionLabel).join(' ')} ${doc._tags.discourse_functions.map(functionLabel).join(' ')} ${doc._tags.topic_tags.join(' ')} ${doc.c.flatMap(s => sectionSentences(s)).join(' ')}`.toLowerCase();
   docs.forEach(doc => { doc._metrics = articleMetrics(doc); doc._tags = normalizedArticleTags(doc); doc._search = docText(doc); });
 
@@ -197,17 +207,29 @@
     const doc = docs.find(d => d.id === id);
     if (!doc) return;
     const articleSentenceRows = documentSentenceRows(doc);
+    const articleParagraphRows = documentParagraphRows(doc);
     const tags = doc._tags;
     const metrics = doc._metrics;
     const licenseLabel = /licenses\/by\/4\.0/i.test(doc.l) ? 'CC BY 4.0' : doc.l;
-    const sections = doc.c.map((sec, sectionIndex) => {
+    const sentenceSections = doc.c.map((sec, sectionIndex) => {
       const rows = indexedSectionSentences(doc, sec, sectionIndex);
       return `<section class="section-block">
-        <div class="section-heading"><div><h3>${escapeHtml(sec.t)}</h3><p>章节 ${sectionIndex + 1} · ${rows.length} 句</p></div><button class="section-export" data-export-section="${sectionIndex}"><span class="material-symbols-rounded">download</span>导出本节</button></div>
+        <div class="section-heading"><div><h3>${escapeHtml(sec.t)}</h3><p>章节 ${sectionIndex + 1} · ${rows.length} 句</p></div><button class="section-export" data-export-sentence-section="${sectionIndex}"><span class="material-symbols-rounded">download</span>导出本节句子</button></div>
         <div class="sentence-list">${rows.map(row => `<article class="sentence-row" id="${row.id}" data-sentence-id="${row.id}">
           <div class="sentence-ref"><strong>${row.id}</strong><span>章节第 ${row.sectionSentenceIndex + 1} 句 · 段落 ${row.paragraphIndex + 1}</span></div>
           <p>${highlight(row.text, state.query)}</p>
           <button class="sentence-copy" data-copy-sentence="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button>
+        </article>`).join('')}</div>
+      </section>`;
+    }).join('');
+    const paragraphSections = doc.c.map((sec, sectionIndex) => {
+      const rows = indexedSectionParagraphs(doc, sec, sectionIndex);
+      return `<section class="section-block">
+        <div class="section-heading"><div><h3>${escapeHtml(sec.t)}</h3><p>章节 ${sectionIndex + 1} · ${rows.length} 段</p></div><button class="section-export" data-export-paragraph-section="${sectionIndex}"><span class="material-symbols-rounded">download</span>导出本节段落</button></div>
+        <div class="paragraph-list">${rows.map(row => `<article class="paragraph-row" id="${row.id}" data-paragraph-id="${row.id}">
+          <div class="paragraph-ref"><strong>${row.id}</strong><span>章节第 ${row.paragraphIndex + 1} 段 · ${row.sentenceCount} 句</span></div>
+          <p>${highlight(row.text, state.query)}</p>
+          <button class="sentence-copy" data-copy-paragraph="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button>
         </article>`).join('')}</div>
       </section>`;
     }).join('');
@@ -219,7 +241,7 @@
         <div><dt>期刊</dt><dd>${escapeHtml(doc.j)}</dd></div><div><dt>DOI</dt><dd>${escapeHtml(doc.doi)}</dd></div><div><dt>研究类型</dt><dd>${escapeHtml(doc.m)}</dd></div>
         <div><dt>索引</dt><dd>${escapeHtml(doc.i)}</dd></div><div><dt>开放许可</dt><dd>${escapeHtml(doc.l)}</dd></div><div><dt>分析集合</dt><dd>${doc.a === 'main_4disciplines_160' ? '四学科主分析集' : '扩展验证集'}</dd></div>
       </dl>
-      <div class="dialog-tools"><a href="${escapeHtml(doc.u)}" target="_blank" rel="noopener"><span class="material-symbols-rounded">open_in_new</span>查看全文</a><button data-copy-citation="${doc.id}"><span class="material-symbols-rounded">content_copy</span>复制引文</button><button data-copy-doi="${doc.doi}"><span class="material-symbols-rounded">fingerprint</span>复制 DOI</button><button data-export-article="${doc.id}"><span class="material-symbols-rounded">table_view</span>导出本文句级 CSV</button></div>
+      <div class="dialog-tools"><a href="${escapeHtml(doc.u)}" target="_blank" rel="noopener"><span class="material-symbols-rounded">open_in_new</span>查看全文</a><button data-copy-citation="${doc.id}"><span class="material-symbols-rounded">content_copy</span>复制引文</button><button data-copy-doi="${doc.doi}"><span class="material-symbols-rounded">fingerprint</span>复制 DOI</button></div>
       <section class="article-tag-panel">
         <div class="tag-panel-heading"><div><p class="overline">ARTICLE TAGS</p><h3>文章细化标签</h3></div><span class="tag-confidence">机器辅助 · 置信度 ${Math.round(tags.confidence * 100)}%</span></div>
         <div class="tag-group-grid">
@@ -231,19 +253,48 @@
         </div>
         <p class="tag-audit-note"><span class="material-symbols-rounded">fact_check</span>评价画像、维度和话语功能为文章级机器辅助特征，用于筛选与候选召回；正式论文分析仍需按句人工复核。</p>
       </section>
-      <div class="sentence-mode-note"><span class="material-symbols-rounded">segment</span><div><strong>句级精确模式</strong><p>每句均保留章节、段落和句内位置，并分配可复核的稳定 ID。点击句子右侧图标可复制“句级 ID + 原文”。</p></div></div>
-      ${sections}`;
+      <section class="granularity-toolbar" aria-labelledby="granularityTitle">
+        <div class="granularity-intro"><p class="overline">TEXT UNIT</p><h3 id="granularityTitle">选择正文粒度</h3><p>随时切换逐句核验或整段阅读；两种视图都保留稳定定位 ID。</p></div>
+        <div class="granularity-switch" role="group" aria-label="正文粒度">
+          <button class="active" data-granularity="sentence" aria-pressed="true"><span class="material-symbols-rounded">short_text</span><span><strong>精确到句</strong><small>${articleSentenceRows.length.toLocaleString('zh-CN')} 句</small></span></button>
+          <button data-granularity="paragraph" aria-pressed="false"><span class="material-symbols-rounded">segment</span><span><strong>精确到段</strong><small>${articleParagraphRows.length.toLocaleString('zh-CN')} 段</small></span></button>
+        </div>
+        <div class="granularity-downloads"><button data-export-article-sentences="${doc.id}"><span class="material-symbols-rounded">download</span>句级 CSV</button><button data-export-article-paragraphs="${doc.id}"><span class="material-symbols-rounded">download</span>段落级 CSV</button></div>
+      </section>
+      <div class="sentence-mode-note" data-mode-note="sentence"><span class="material-symbols-rounded">short_text</span><div><strong>句级精确模式</strong><p>每句保留章节、段落和句内位置。右侧按钮可复制“句级 ID + 原文”。</p></div></div>
+      <div class="sentence-mode-note paragraph-mode-note" data-mode-note="paragraph" hidden><span class="material-symbols-rounded">segment</span><div><strong>段落级精确模式</strong><p>每段保留章节和段落位置，并标注段内句数。右侧按钮可复制“段落 ID + 整段原文”。</p></div></div>
+      <div data-granularity-panel="sentence">${sentenceSections}</div>
+      <div data-granularity-panel="paragraph" hidden>${paragraphSections}</div>`;
     $('articleDialog').showModal();
     $('dialogContent').querySelector('[data-copy-citation]').addEventListener('click', () => copyText(`${doc.au} (${doc.y}). ${doc.t}. ${doc.j}. https://doi.org/${doc.doi}`));
     $('dialogContent').querySelector('[data-copy-doi]').addEventListener('click', () => copyText(doc.doi));
-    $('dialogContent').querySelector('[data-export-article]').addEventListener('click', () => exportSentenceRows(`${doc.id}_sentences.csv`, articleSentenceRows));
-    $('dialogContent').querySelectorAll('[data-export-section]').forEach(button => button.addEventListener('click', () => {
-      const sectionIndex = Number(button.dataset.exportSection);
+    $('dialogContent').querySelector('[data-export-article-sentences]').addEventListener('click', () => exportSentenceRows(`${doc.id}_sentences.csv`, articleSentenceRows));
+    $('dialogContent').querySelector('[data-export-article-paragraphs]').addEventListener('click', () => exportParagraphRows(`${doc.id}_paragraphs.csv`, articleParagraphRows));
+    $('dialogContent').querySelectorAll('[data-export-sentence-section]').forEach(button => button.addEventListener('click', () => {
+      const sectionIndex = Number(button.dataset.exportSentenceSection);
       exportSentenceRows(`${doc.id}_${sectionCode(doc.c[sectionIndex].t)}_sentences.csv`, indexedSectionSentences(doc, doc.c[sectionIndex], sectionIndex));
+    }));
+    $('dialogContent').querySelectorAll('[data-export-paragraph-section]').forEach(button => button.addEventListener('click', () => {
+      const sectionIndex = Number(button.dataset.exportParagraphSection);
+      exportParagraphRows(`${doc.id}_${sectionCode(doc.c[sectionIndex].t)}_paragraphs.csv`, indexedSectionParagraphs(doc, doc.c[sectionIndex], sectionIndex));
     }));
     $('dialogContent').querySelectorAll('[data-copy-sentence]').forEach(button => button.addEventListener('click', () => {
       const row = articleSentenceRows.find(item => item.id === button.dataset.copySentence);
       if (row) copyText(`${row.id}\n${row.text}`);
+    }));
+    $('dialogContent').querySelectorAll('[data-copy-paragraph]').forEach(button => button.addEventListener('click', () => {
+      const row = articleParagraphRows.find(item => item.id === button.dataset.copyParagraph);
+      if (row) copyText(`${row.id}\n${row.text}`);
+    }));
+    $('dialogContent').querySelectorAll('[data-granularity]').forEach(button => button.addEventListener('click', () => {
+      const granularity = button.dataset.granularity;
+      $('dialogContent').querySelectorAll('[data-granularity]').forEach(item => {
+        const active = item === button;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-pressed', String(active));
+      });
+      $('dialogContent').querySelectorAll('[data-granularity-panel]').forEach(panel => { panel.hidden = panel.dataset.granularityPanel !== granularity; });
+      $('dialogContent').querySelectorAll('[data-mode-note]').forEach(note => { note.hidden = note.dataset.modeNote !== granularity; });
     }));
   }
   $('dialogClose').addEventListener('click', () => $('articleDialog').close());
@@ -316,6 +367,12 @@
       ['sentence_id','doc_id','analysis_set','subject','journal','year','doi','study_method','evaluation_profile','evaluation_dimensions','discourse_functions','topic_tags','tag_confidence','section_type','section_index','section_sentence_index','paragraph_index','sentence_in_paragraph','previous_sentence','sentence_text','next_sentence'],
       rows.map(row => [row.id,row.doc.id,row.doc.a,row.doc.s,row.doc.j,row.doc.y,row.doc.doi,row.doc.m,row.doc._tags.label,row.doc._tags.evaluation_dimensions.join('|'),row.doc._tags.discourse_functions.join('|'),row.doc._tags.topic_tags.join('|'),row.doc._tags.confidence,row.type,row.sectionIndex + 1,row.sectionSentenceIndex + 1,row.paragraphIndex + 1,row.sentenceIndex + 1,row.prev,row.text,row.next]));
     showToast(`已导出 ${rows.length.toLocaleString('zh-CN')} 个句子`);
+  }
+  function exportParagraphRows(filename, rows) {
+    downloadCsv(filename,
+      ['paragraph_id','doc_id','analysis_set','subject','journal','year','doi','study_method','evaluation_profile','evaluation_dimensions','discourse_functions','topic_tags','tag_confidence','section_type','section_index','paragraph_index','sentence_count','previous_paragraph','paragraph_text','next_paragraph'],
+      rows.map(row => [row.id,row.doc.id,row.doc.a,row.doc.s,row.doc.j,row.doc.y,row.doc.doi,row.doc.m,row.doc._tags.label,row.doc._tags.evaluation_dimensions.join('|'),row.doc._tags.discourse_functions.join('|'),row.doc._tags.topic_tags.join('|'),row.doc._tags.confidence,row.type,row.sectionIndex + 1,row.paragraphIndex + 1,row.sentenceCount,row.prev,row.text,row.next]));
+    showToast(`已导出 ${rows.length.toLocaleString('zh-CN')} 个段落`);
   }
   $('downloadMetadata').addEventListener('click', () => {
     const data = filteredDocs();
