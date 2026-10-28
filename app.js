@@ -6,16 +6,44 @@
   }
 
   const docs = corpus.documents;
+  const articleTags = window.ARTICLE_TAGS || {};
   const palette = {
     '医学': '#a25058', '计算机科学': '#315f91', '语言学': '#9c6b2f',
     '环境科学': '#648260', '生物学': '#7c5e89', '社会科学': '#b65f43'
   };
-  const state = { view: 'library', page: 1, pageSize: 20, query: '', set: '', subject: '', journal: '', year: '', section: '', sort: 'corpus', concordance: [] };
+  const state = { view: 'library', page: 1, pageSize: 20, query: '', set: '', subject: '', journal: '', year: '', section: '', method: '', profile: '', dimension: '', sort: 'corpus', concordance: [] };
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const debounce = (fn, wait = 160) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; };
   const subjectColor = subject => palette[subject] || '#607080';
   const sectionSentences = section => section.p.flat();
+  const profileLabels = {
+    evidence_validation: '证据验证型', effect_comparison: '效果比较型', mechanism_explanation: '机制解释型',
+    application_implication: '应用启示型', exploratory_description: '探索描述型', limitation_reflection: '限制反思型',
+    needs_review: '待人工复核'
+  };
+  const dimensionLabels = { importance: '重要性', significance: '显著性', validity: '有效性', quality: '质量', expectedness: '预期性' };
+  const functionLabels = { hedging: '模糊限制', boosting: '强化断言', comparison: '比较评价', limitation: '局限反思', implication: '推论启示', recommendation: '建议行动' };
+  const profileLabel = code => profileLabels[code] || code;
+  const dimensionLabel = code => dimensionLabels[code] || code;
+  const functionLabel = code => functionLabels[code] || code;
+  function articleMetrics(doc) {
+    const sentences = doc.c.flatMap(sectionSentences);
+    const paragraphs = doc.c.reduce((sum, section) => sum + section.p.length, 0);
+    const words = sentences.join(' ').match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g)?.length || 0;
+    return { sentences: sentences.length, paragraphs, words, sections: doc.c.map(section => section.t) };
+  }
+  function normalizedArticleTags(doc) {
+    const tags = articleTags[doc.id] || {};
+    return {
+      label: tags.label || 'needs_review',
+      evaluation_dimensions: Array.isArray(tags.evaluation_dimensions) ? tags.evaluation_dimensions : [],
+      discourse_functions: Array.isArray(tags.discourse_functions) ? tags.discourse_functions : [],
+      topic_tags: Array.isArray(tags.topic_tags) ? tags.topic_tags : [],
+      confidence: Number.isFinite(Number(tags.confidence)) ? Number(tags.confidence) : 0,
+      reason: tags.reason || '尚未生成机器辅助标签。'
+    };
+  }
   const sectionCode = type => ({ Results: 'RES', Discussion: 'DIS', 'Results and Discussion': 'RAD' }[type] || 'SEC');
   const sentenceId = (doc, section, sectionIndex, paragraphIndex, sentenceIndex) =>
     `${doc.id}-${sectionCode(section.t)}-C${String(sectionIndex + 1).padStart(2, '0')}-P${String(paragraphIndex + 1).padStart(2, '0')}-S${String(sentenceIndex + 1).padStart(2, '0')}`;
@@ -28,8 +56,8 @@
     return rows.map((row, index) => ({ ...row, prev: rows[index - 1]?.text || '', next: rows[index + 1]?.text || '' }));
   }
   const documentSentenceRows = doc => doc.c.flatMap((section, sectionIndex) => indexedSectionSentences(doc, section, sectionIndex));
-  const docText = doc => `${doc.t} ${doc.au} ${doc.doi} ${doc.j} ${doc.c.flatMap(s => sectionSentences(s)).join(' ')}`.toLowerCase();
-  docs.forEach(doc => { doc._search = docText(doc); });
+  const docText = doc => `${doc.t} ${doc.au} ${doc.doi} ${doc.j} ${doc.m} ${profileLabel(doc._tags.label)} ${doc._tags.evaluation_dimensions.map(dimensionLabel).join(' ')} ${doc._tags.discourse_functions.map(functionLabel).join(' ')} ${doc._tags.topic_tags.join(' ')} ${doc.c.flatMap(s => sectionSentences(s)).join(' ')}`.toLowerCase();
+  docs.forEach(doc => { doc._metrics = articleMetrics(doc); doc._tags = normalizedArticleTags(doc); doc._search = docText(doc); });
 
   const stats = corpus.stats;
   $('statDocs').textContent = stats.documents.toLocaleString('zh-CN');
@@ -37,15 +65,18 @@
   $('statSentences').textContent = stats.sentences.toLocaleString('zh-CN');
   $('statWords').textContent = `${(stats.words / 10000).toFixed(1)} 万`;
 
-  function optionList(values, target) {
+  function optionList(values, target, labeler = value => value) {
     [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b), 'zh-CN')).forEach(value => {
       const option = document.createElement('option');
-      option.value = value; option.textContent = value; target.append(option);
+      option.value = value; option.textContent = labeler(value); target.append(option);
     });
   }
   optionList(docs.map(d => d.s), $('filterSubject'));
   optionList(docs.map(d => d.j), $('filterJournal'));
   optionList(docs.map(d => d.y), $('filterYear'));
+  optionList(docs.map(d => d.m), $('filterMethod'));
+  optionList(docs.map(d => d._tags.label), $('filterProfile'), profileLabel);
+  optionList(docs.flatMap(d => d._tags.evaluation_dimensions), $('filterDimension'), dimensionLabel);
   optionList(docs.map(d => d.s), $('concordanceSubject'));
 
   const subjects = [...new Set(docs.map(d => d.s))];
@@ -78,6 +109,9 @@
       if (state.journal && doc.j !== state.journal) return false;
       if (state.year && String(doc.y) !== String(state.year)) return false;
       if (state.section && !doc.c.some(sec => sec.t === state.section)) return false;
+      if (state.method && doc.m !== state.method) return false;
+      if (state.profile && doc._tags.label !== state.profile) return false;
+      if (state.dimension && !doc._tags.evaluation_dimensions.includes(state.dimension)) return false;
       if (state.query && !doc._search.includes(state.query.toLowerCase())) return false;
       return true;
     });
@@ -103,7 +137,8 @@
     const values = [
       ['set', state.set, state.set === 'main_4disciplines_160' ? '主分析集' : '扩展验证集'],
       ['subject', state.subject, state.subject], ['journal', state.journal, state.journal],
-      ['year', state.year, state.year], ['section', state.section, state.section],
+      ['year', state.year, state.year], ['section', state.section, state.section], ['method', state.method, state.method],
+      ['profile', state.profile, profileLabel(state.profile)], ['dimension', state.dimension, dimensionLabel(state.dimension)],
       ['query', state.query, `检索：${state.query}`]
     ].filter(([,value]) => value);
     $('activeFilters').innerHTML = values.map(([key,,label]) => `<span class="filter-tag">${escapeHtml(label)}<button data-clear="${key}" aria-label="移除">×</button></span>`).join('');
@@ -112,7 +147,7 @@
 
   function clearOne(key) {
     state[key] = ''; state.page = 1;
-    const map = { set:'filterSet', subject:'filterSubject', journal:'filterJournal', year:'filterYear', section:'filterSection', query:'articleSearch' };
+    const map = { set:'filterSet', subject:'filterSubject', journal:'filterJournal', year:'filterYear', section:'filterSection', method:'filterMethod', profile:'filterProfile', dimension:'filterDimension', query:'articleSearch' };
     if (map[key]) $(map[key]).value = '';
     if (key === 'subject') document.querySelectorAll('.subject-chip').forEach(b => b.classList.toggle('active', !b.dataset.subject));
     renderArticles();
@@ -132,6 +167,7 @@
         <div class="card-topline"><span class="doc-id">${doc.id}</span><span class="set-badge">${doc.a === 'main_4disciplines_160' ? '主分析集' : '扩展集'}</span></div>
         <h3>${highlight(doc.t, state.query)}</h3>
         <p class="journal-line">${escapeHtml(doc.j)} · ${escapeHtml(doc.s)}</p>
+        <div class="article-tag-row"><span class="tag-chip metadata">${escapeHtml(doc.m)}</span><span class="tag-chip profile">${escapeHtml(profileLabel(doc._tags.label))}</span>${doc._tags.evaluation_dimensions.slice(0,2).map(tag => `<span class="tag-chip dimension">${escapeHtml(dimensionLabel(tag))}</span>`).join('')}</div>
         <p class="snippet">${findSnippet(doc)}</p>
         <div class="card-bottom"><div class="section-badges">${doc.c.map(sec => `<span>${escapeHtml(sec.t)} · ${sectionSentences(sec).length} 句</span>`).join('')}</div><span class="year">${doc.y}</span></div>
       </article>`).join('');
@@ -161,6 +197,9 @@
     const doc = docs.find(d => d.id === id);
     if (!doc) return;
     const articleSentenceRows = documentSentenceRows(doc);
+    const tags = doc._tags;
+    const metrics = doc._metrics;
+    const licenseLabel = /licenses\/by\/4\.0/i.test(doc.l) ? 'CC BY 4.0' : doc.l;
     const sections = doc.c.map((sec, sectionIndex) => {
       const rows = indexedSectionSentences(doc, sec, sectionIndex);
       return `<section class="section-block">
@@ -181,6 +220,17 @@
         <div><dt>索引</dt><dd>${escapeHtml(doc.i)}</dd></div><div><dt>开放许可</dt><dd>${escapeHtml(doc.l)}</dd></div><div><dt>分析集合</dt><dd>${doc.a === 'main_4disciplines_160' ? '四学科主分析集' : '扩展验证集'}</dd></div>
       </dl>
       <div class="dialog-tools"><a href="${escapeHtml(doc.u)}" target="_blank" rel="noopener"><span class="material-symbols-rounded">open_in_new</span>查看全文</a><button data-copy-citation="${doc.id}"><span class="material-symbols-rounded">content_copy</span>复制引文</button><button data-copy-doi="${doc.doi}"><span class="material-symbols-rounded">fingerprint</span>复制 DOI</button><button data-export-article="${doc.id}"><span class="material-symbols-rounded">table_view</span>导出本文句级 CSV</button></div>
+      <section class="article-tag-panel">
+        <div class="tag-panel-heading"><div><p class="overline">ARTICLE TAGS</p><h3>文章细化标签</h3></div><span class="tag-confidence">机器辅助 · 置信度 ${Math.round(tags.confidence * 100)}%</span></div>
+        <div class="tag-group-grid">
+          <article><h4>语料元数据</h4><div class="tag-list"><span>${escapeHtml(doc.m)}</span><span>${escapeHtml(doc.i)}</span><span>${escapeHtml(licenseLabel)}</span><span>${metrics.sections.map(escapeHtml).join(' + ')}</span><span>${metrics.sentences.toLocaleString('zh-CN')} 句</span><span>${metrics.paragraphs.toLocaleString('zh-CN')} 段</span><span>${metrics.words.toLocaleString('zh-CN')} 词</span></div></article>
+          <article><h4>主导评价画像</h4><div class="tag-list featured"><span>${escapeHtml(profileLabel(tags.label))}</span></div><p>${escapeHtml(tags.reason)}</p></article>
+          <article><h4>评价维度</h4><div class="tag-list">${tags.evaluation_dimensions.map(tag => `<span>${escapeHtml(dimensionLabel(tag))}</span>`).join('') || '<span>待复核</span>'}</div></article>
+          <article><h4>话语功能</h4><div class="tag-list">${tags.discourse_functions.map(tag => `<span>${escapeHtml(functionLabel(tag))}</span>`).join('') || '<span>待复核</span>'}</div></article>
+          <article class="topic-tag-group"><h4>主题标签</h4><div class="tag-list topics">${tags.topic_tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('') || '<span>待复核</span>'}</div></article>
+        </div>
+        <p class="tag-audit-note"><span class="material-symbols-rounded">fact_check</span>评价画像、维度和话语功能为文章级机器辅助特征，用于筛选与候选召回；正式论文分析仍需按句人工复核。</p>
+      </section>
       <div class="sentence-mode-note"><span class="material-symbols-rounded">segment</span><div><strong>句级精确模式</strong><p>每句均保留章节、段落和句内位置，并分配可复核的稳定 ID。点击句子右侧图标可复制“句级 ID + 原文”。</p></div></div>
       ${sections}`;
     $('articleDialog').showModal();
@@ -210,11 +260,11 @@
   function setControl(id, key) {
     $(id).addEventListener('change', e => { state[key] = e.target.value; state.page = 1; renderArticles(); });
   }
-  setControl('filterSet','set'); setControl('filterSubject','subject'); setControl('filterJournal','journal'); setControl('filterYear','year'); setControl('filterSection','section'); setControl('sortArticles','sort');
+  setControl('filterSet','set'); setControl('filterSubject','subject'); setControl('filterJournal','journal'); setControl('filterYear','year'); setControl('filterSection','section'); setControl('filterMethod','method'); setControl('filterProfile','profile'); setControl('filterDimension','dimension'); setControl('sortArticles','sort');
   $('articleSearch').addEventListener('input', debounce(e => { state.query = e.target.value.trim(); state.page = 1; renderArticles(); }));
   $('clearFilters').addEventListener('click', () => {
-    Object.assign(state, {page:1, query:'', set:'', subject:'', journal:'', year:'', section:''});
-    ['filterSet','filterSubject','filterJournal','filterYear','filterSection','articleSearch'].forEach(id => $(id).value = '');
+    Object.assign(state, {page:1, query:'', set:'', subject:'', journal:'', year:'', section:'', method:'', profile:'', dimension:''});
+    ['filterSet','filterSubject','filterJournal','filterYear','filterSection','filterMethod','filterProfile','filterDimension','articleSearch'].forEach(id => $(id).value = '');
     document.querySelectorAll('.subject-chip').forEach(b => b.classList.toggle('active', !b.dataset.subject)); renderArticles();
   });
   $('subjectRibbon').addEventListener('click', e => {
@@ -244,7 +294,7 @@
     });
     state.concordance = all;
     $('concordanceSummary').innerHTML = `<strong>${all.length.toLocaleString('zh-CN')} 条命中</strong><span>当前展示前 ${Math.min(100, all.length)} 条</span>`;
-    $('kwicList').innerHTML = all.slice(0,100).map(row => `<article class="kwic-item" style="--subject-color:${subjectColor(row.doc.s)}"><div class="kwic-meta"><strong>${escapeHtml(row.doc.s)} · ${escapeHtml(row.type)}</strong><b>${row.id}</b>${escapeHtml(row.doc.j)}<br/>${row.doc.y}</div><div class="kwic-context"><p class="neighbor"><span>前句</span>${escapeHtml(row.prev)}</p><div class="kwic-target-line"><p class="target">${highlight(row.text, query)}</p><button data-copy-concordance="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button></div><p class="neighbor"><span>后句</span>${escapeHtml(row.next)}</p></div></article>`).join('');
+    $('kwicList').innerHTML = all.slice(0,100).map(row => `<article class="kwic-item" style="--subject-color:${subjectColor(row.doc.s)}"><div class="kwic-meta"><strong>${escapeHtml(row.doc.s)} · ${escapeHtml(row.type)}</strong><span class="kwic-profile">${escapeHtml(profileLabel(row.doc._tags.label))}</span><b>${row.id}</b>${escapeHtml(row.doc.j)}<br/>${row.doc.y}</div><div class="kwic-context"><p class="neighbor"><span>前句</span>${escapeHtml(row.prev)}</p><div class="kwic-target-line"><p class="target">${highlight(row.text, query)}</p><button data-copy-concordance="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button></div><p class="neighbor"><span>后句</span>${escapeHtml(row.next)}</p></div></article>`).join('');
     $('kwicList').querySelectorAll('[data-copy-concordance]').forEach(button => button.addEventListener('click', () => {
       const row = all.find(item => item.id === button.dataset.copyConcordance);
       if (row) copyText(`${row.id}\n${row.text}`);
@@ -263,18 +313,18 @@
   }
   function exportSentenceRows(filename, rows) {
     downloadCsv(filename,
-      ['sentence_id','doc_id','analysis_set','subject','journal','year','doi','section_type','section_index','section_sentence_index','paragraph_index','sentence_in_paragraph','previous_sentence','sentence_text','next_sentence'],
-      rows.map(row => [row.id,row.doc.id,row.doc.a,row.doc.s,row.doc.j,row.doc.y,row.doc.doi,row.type,row.sectionIndex + 1,row.sectionSentenceIndex + 1,row.paragraphIndex + 1,row.sentenceIndex + 1,row.prev,row.text,row.next]));
+      ['sentence_id','doc_id','analysis_set','subject','journal','year','doi','study_method','evaluation_profile','evaluation_dimensions','discourse_functions','topic_tags','tag_confidence','section_type','section_index','section_sentence_index','paragraph_index','sentence_in_paragraph','previous_sentence','sentence_text','next_sentence'],
+      rows.map(row => [row.id,row.doc.id,row.doc.a,row.doc.s,row.doc.j,row.doc.y,row.doc.doi,row.doc.m,row.doc._tags.label,row.doc._tags.evaluation_dimensions.join('|'),row.doc._tags.discourse_functions.join('|'),row.doc._tags.topic_tags.join('|'),row.doc._tags.confidence,row.type,row.sectionIndex + 1,row.sectionSentenceIndex + 1,row.paragraphIndex + 1,row.sentenceIndex + 1,row.prev,row.text,row.next]));
     showToast(`已导出 ${rows.length.toLocaleString('zh-CN')} 个句子`);
   }
   $('downloadMetadata').addEventListener('click', () => {
     const data = filteredDocs();
-    downloadCsv('corpus_metadata.csv', ['doc_id','analysis_set','subject','journal','year','doi','title','authors','section_types'], data.map(d => [d.id,d.a,d.s,d.j,d.y,d.doi,d.t,d.au,d.c.map(s=>s.t).join('|')]));
+    downloadCsv('corpus_metadata_with_article_tags.csv', ['doc_id','analysis_set','subject','journal','year','doi','title','authors','study_method','index','license','section_types','section_count','paragraph_count','sentence_count','word_count','evaluation_profile','evaluation_dimensions','discourse_functions','topic_tags','tag_confidence','tag_reason'], data.map(d => [d.id,d.a,d.s,d.j,d.y,d.doi,d.t,d.au,d.m,d.i,d.l,d._metrics.sections.join('|'),d.c.length,d._metrics.paragraphs,d._metrics.sentences,d._metrics.words,d._tags.label,d._tags.evaluation_dimensions.join('|'),d._tags.discourse_functions.join('|'),d._tags.topic_tags.join('|'),d._tags.confidence,d._tags.reason]));
     showToast(`已导出 ${data.length} 篇元数据`);
   });
   $('exportConcordance').addEventListener('click', () => {
     if (!state.concordance.length) { showToast('请先执行语境检索'); return; }
-    downloadCsv('concordance_results.csv', ['sentence_id','doc_id','subject','journal','year','doi','section_type','section_index','paragraph_index','sentence_in_paragraph','previous_sentence','target_sentence','next_sentence'], state.concordance.map(r => [r.id,r.doc.id,r.doc.s,r.doc.j,r.doc.y,r.doc.doi,r.type,r.sectionIndex + 1,r.paragraphIndex + 1,r.sentenceIndex + 1,r.prev,r.text,r.next]));
+    downloadCsv('concordance_results.csv', ['sentence_id','doc_id','subject','journal','year','doi','study_method','evaluation_profile','evaluation_dimensions','discourse_functions','section_type','section_index','paragraph_index','sentence_in_paragraph','previous_sentence','target_sentence','next_sentence'], state.concordance.map(r => [r.id,r.doc.id,r.doc.s,r.doc.j,r.doc.y,r.doc.doi,r.doc.m,r.doc._tags.label,r.doc._tags.evaluation_dimensions.join('|'),r.doc._tags.discourse_functions.join('|'),r.type,r.sectionIndex + 1,r.paragraphIndex + 1,r.sentenceIndex + 1,r.prev,r.text,r.next]));
     showToast(`已导出 ${state.concordance.length} 条语境`);
   });
   $('downloadSentences').addEventListener('click', () => {

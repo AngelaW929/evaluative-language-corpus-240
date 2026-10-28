@@ -1,0 +1,20 @@
+You are annotating English empirical research articles for an evaluative-language corpus. Return strict JSON only: an array with exactly one object for every input rid. Preserve each rid exactly.
+
+For each record, return these fields:
+- rid
+- label: exactly one dominant article profile from: evidence_validation, effect_comparison, mechanism_explanation, application_implication, exploratory_description, limitation_reflection
+- evaluation_dimensions: an array containing one to three codes supported by the text from: importance, significance, validity, quality, expectedness
+- discourse_functions: an array containing two to four codes supported by the text from: hedging, boosting, comparison, limitation, implication, recommendation
+- topic_tags: an array of two to four concise English noun phrases grounded in the title or abstract; do not invent topics
+- confidence: a number from 0 to 1
+- reason: one short English sentence citing the textual basis for the dominant profile
+
+Definitions:
+- evidence_validation: primarily validates a model, measure, association, or evidence base.
+- effect_comparison: primarily evaluates differences, effects, interventions, or group contrasts.
+- mechanism_explanation: primarily explains a mechanism, process, pathway, or causal account.
+- application_implication: primarily emphasizes practical, clinical, educational, policy, or technical implications.
+- exploratory_description: primarily maps, describes, characterizes, or discovers patterns without one dominant evaluative claim.
+- limitation_reflection: limitations, uncertainty, boundary conditions, or methodological reflection dominate the supplied text.
+
+Use only the supplied article text. These are provisional machine-assisted article-level feature tags, not final sentence-level manual annotations.

@@ -58,7 +58,10 @@
         <label class="filter-field"><span>期刊</span><select id="filterJournal"><option value="">全部期刊</option></select></label>
         <label class="filter-field"><span>年份</span><select id="filterYear"><option value="">2023—2026</option></select></label>
         <label class="filter-field"><span>章节类型</span><select id="filterSection"><option value="">全部章节</option><option>Results</option><option>Discussion</option><option>Results and Discussion</option></select></label>
-        <div class="filter-note"><span class="material-symbols-rounded">info</span><p>主分析集对应研究方案中的生物学、计算机科学、语言学和社会科学。</p></div>
+        <label class="filter-field"><span>研究方法</span><select id="filterMethod"><option value="">全部方法</option></select></label>
+        <label class="filter-field"><span>主导评价画像</span><select id="filterProfile"><option value="">全部画像</option></select></label>
+        <label class="filter-field"><span>评价维度</span><select id="filterDimension"><option value="">全部维度</option></select></label>
+        <div class="filter-note"><span class="material-symbols-rounded">info</span><p>评价画像、维度与话语功能为文章级机器辅助特征标签，用于筛选和候选召回，正式标注仍需逐句人工复核。</p></div>
       </aside>
 
       <div class="results-area">
@@ -115,15 +118,15 @@
       <div class="pipeline">
         <article><span>01</span><div><h3>语料抽样</h3><p>6 学科 × 2 本期刊 × 每刊 20 篇，年份覆盖 2023—2026。</p></div></article>
         <article><span>02</span><div><h3>章节抽取与分句</h3><p>优先 JATS XML / HTML，PDF 补充；排除图表、参考文献和补充材料，并生成“文档—章节—段落—句子”稳定 ID。</p></div></article>
-        <article><span>03</span><div><h3>候选召回</h3><p>依据评价词项和九类起始型式高召回检索，并保留前后句。</p></div></article>
-        <article><span>04</span><div><h3>人工标注</h3><p>依次标注语法型式、功能成分和语义参数，记录 No-eval 与不确定项。</p></div></article>
+        <article><span>03</span><div><h3>文章级特征</h3><p>结合元数据、摘要与代表性章节语句生成评价画像、维度、话语功能和主题标签。</p></div></article>
+        <article><span>04</span><div><h3>候选召回与复核</h3><p>依据文章标签、评价词项和九类起始型式高召回检索，再逐句人工标注并记录 No-eval。</p></div></article>
       </div>
       <div class="framework-grid">
         <article class="framework-card pattern"><p class="card-no">LAYER 01</p><h3>语法型式</h3><p>形式层回答评价通过何种结构实现。</p><ul><li>n v-link ADJ</li><li>ADJ n</li><li>it v-link ADJ that/to-inf</li><li>V n as ADJ/n</li><li>+ 5 类起始型式</li></ul></article>
         <article class="framework-card function"><p class="card-no">LAYER 02</p><h3>功能成分</h3><p>功能层描述评价事件内部的参与角色。</p><div class="token-cloud"><span>EC</span><span>EE</span><span>HINGE</span><span>EV</span><span>RESTR</span><span>MOD</span></div></article>
         <article class="framework-card semantic"><p class="card-no">LAYER 03</p><h3>语义参数</h3><p>意义层说明评价什么，以及沿何种价值维度评价。</p><dl><dt>EE</dt><dd>proposition · entity · person</dd><dt>EC</dt><dd>importance · validity · quality · expectedness</dd></dl></article>
       </div>
-      <div class="method-note"><span class="material-symbols-rounded">verified</span><div><h3>质量边界</h3><p>240 个 DOI 唯一；34,520 个句子均映射回文档、章节与段落。主分析集为四学科 160 篇，医学与环境科学 80 篇作为扩展验证。正式标签须在 pilot 后冻结，目标一致性 ≥ 0.80。</p></div></div>
+      <div class="method-note"><span class="material-symbols-rounded">verified</span><div><h3>质量边界</h3><p>240 个 DOI 唯一；34,520 个句子均映射回文档、章节与段落。文章级机器辅助标签保留置信度和依据，仅用于探索性筛选；正式句级标签须在 pilot 后冻结，目标一致性 ≥ 0.80。</p></div></div>
     </section>
   </main>
 
@@ -138,6 +141,7 @@
 
   <div class="toast" id="toast" role="status"><span class="material-symbols-rounded">check_circle</span><span></span></div>
   <script src="./corpus-data.js"></script>
+  <script src="./article-tags.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
