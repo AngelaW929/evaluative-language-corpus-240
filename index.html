@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="240 篇英语研究论文 Results / Discussion 跨学科研究语料库" />
+  <title>Evaluative Language Corpus · 评价性语言研究语料库</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%2320242d'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='serif' font-size='29' fill='%23fffefa'%3EEC%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="paper-grain" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="返回首页">
+      <span class="brand-mark"><span>EC</span></span>
+      <span class="brand-copy"><strong>EL · Corpus</strong><small>Evaluative Language</small></span>
+    </a>
+    <nav class="top-nav" aria-label="主要导航">
+      <button class="nav-tab active" data-view="library"><span class="material-symbols-rounded">library_books</span>文章库</button>
+      <button class="nav-tab" data-view="concordance"><span class="material-symbols-rounded">manage_search</span>语境检索</button>
+      <button class="nav-tab" data-view="about"><span class="material-symbols-rounded">schema</span>研究设计</button>
+    </nav>
+    <button class="outline-button" id="downloadMetadata"><span class="material-symbols-rounded">download</span>导出元数据</button>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-orbit orbit-one"></div>
+      <div class="hero-orbit orbit-two"></div>
+      <div class="hero-content">
+        <p class="eyebrow"><span></span>跨学科局部语法研究 · 2023—2026</p>
+        <h1>英语研究论文<br/><em>评价性语言</em>语料库</h1>
+        <p class="hero-lead">面向 Results 与 Discussion 的可检索研究语料。以文档、章节、段落和句子为索引，连接语法型式、功能成分与语义参数。</p>
+        <div class="hero-actions">
+          <button class="primary-button" id="startExplore"><span class="material-symbols-rounded">search</span>开始探索</button>
+          <button class="text-button" data-view-jump="about">查看构建方法 <span class="material-symbols-rounded">arrow_forward</span></button>
+        </div>
+      </div>
+      <div class="hero-stats" aria-label="语料库规模">
+        <article><span class="stat-index">01</span><strong id="statDocs">240</strong><p>篇开放获取论文</p></article>
+        <article><span class="stat-index">02</span><strong id="statSections">424</strong><p>个目标章节</p></article>
+        <article><span class="stat-index">03</span><strong id="statSentences">34,520</strong><p>个可定位句子</p></article>
+        <article><span class="stat-index">04</span><strong id="statWords">77.8 万</strong><p>英文词次</p></article>
+      </div>
+    </section>
+
+    <section class="subject-ribbon" id="subjectRibbon" aria-label="学科快捷筛选"></section>
+
+    <section class="workspace view-panel active" id="libraryView" data-panel="library">
+      <aside class="filter-panel">
+        <div class="filter-heading"><span>REFINE</span><h2>筛选语料</h2><button id="clearFilters">清除</button></div>
+        <label class="filter-field"><span>分析集合</span><select id="filterSet"><option value="">全部 240 篇</option><option value="main_4disciplines_160">主分析集 · 160 篇</option><option value="extended_validation_80">扩展验证集 · 80 篇</option></select></label>
+        <label class="filter-field"><span>学科</span><select id="filterSubject"><option value="">全部学科</option></select></label>
+        <label class="filter-field"><span>期刊</span><select id="filterJournal"><option value="">全部期刊</option></select></label>
+        <label class="filter-field"><span>年份</span><select id="filterYear"><option value="">2023—2026</option></select></label>
+        <label class="filter-field"><span>章节类型</span><select id="filterSection"><option value="">全部章节</option><option>Results</option><option>Discussion</option><option>Results and Discussion</option></select></label>
+        <div class="filter-note"><span class="material-symbols-rounded">info</span><p>主分析集对应研究方案中的生物学、计算机科学、语言学和社会科学。</p></div>
+      </aside>
+
+      <div class="results-area">
+        <div class="search-shell">
+          <span class="material-symbols-rounded">search</span>
+          <input id="articleSearch" type="search" autocomplete="off" placeholder="搜索题名、作者、DOI 或章节正文…" />
+          <kbd>⌘ K</kbd>
+        </div>
+        <div class="results-meta">
+          <div><p class="overline">CORPUS LIBRARY</p><h2><span id="articleCount">240</span> 篇文章</h2></div>
+          <div class="sort-control"><label for="sortArticles">排序</label><select id="sortArticles"><option value="corpus">语料库顺序</option><option value="yearDesc">年份：新到旧</option><option value="yearAsc">年份：旧到新</option><option value="title">题名字母序</option></select></div>
+        </div>
+        <div class="active-filters" id="activeFilters"></div>
+        <div class="article-grid" id="articleGrid"></div>
+        <div class="empty-state" id="articleEmpty" hidden><span class="material-symbols-rounded">plagiarism</span><h3>没有匹配的文章</h3><p>试试缩短检索词，或清除部分筛选条件。</p></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </section>
+
+    <section class="concordance-layout view-panel" id="concordanceView" data-panel="concordance">
+      <div class="concordance-intro">
+        <p class="overline">CONCORDANCE</p>
+        <h2>在 34,520 个句子中<br/>定位评价语境</h2>
+        <p>输入词项或短语，查看目标句及前后句。结果保留文档、章节、学科和期刊映射，便于人工判定评价义与 No-eval。</p>
+        <div class="query-examples"><button data-query="important">important</button><button data-query="significant">significant</button><button data-query="surprisingly">surprisingly</button><button data-query="it is clear">it is clear</button></div>
+      </div>
+      <div class="concordance-main">
+        <div class="concordance-search">
+          <span class="material-symbols-rounded">travel_explore</span>
+          <input id="concordanceSearch" type="search" placeholder="输入评价词或短语，例如 significant…" />
+          <button id="runConcordance">检索</button>
+        </div>
+        <div class="concordance-filters">
+          <select id="concordanceSubject"><option value="">全部学科</option></select>
+          <select id="concordanceSection"><option value="">全部章节</option><option>Results</option><option>Discussion</option><option>Results and Discussion</option></select>
+          <label class="check-control"><input id="caseSensitive" type="checkbox"/><span>区分大小写</span></label>
+          <button class="text-button compact" id="exportConcordance"><span class="material-symbols-rounded">download</span>导出结果</button>
+        </div>
+        <div class="concordance-summary" id="concordanceSummary"><strong>等待检索</strong><span>输入词项后显示最多 100 条语境</span></div>
+        <div class="kwic-list" id="kwicList"></div>
+      </div>
+    </section>
+
+    <section class="about-view view-panel" id="aboutView" data-panel="about">
+      <div class="about-heading">
+        <p class="overline">RESEARCH ARCHITECTURE</p>
+        <h2>从原始章节到<br/>可复核的评价构式</h2>
+        <p>网页完整保留语料库的研究设计边界。模型可协助召回候选，但评价性判定和三层标签需由研究者复核。</p>
+      </div>
+      <div class="pipeline">
+        <article><span>01</span><div><h3>语料抽样</h3><p>6 学科 × 2 本期刊 × 每刊 20 篇，年份覆盖 2023—2026。</p></div></article>
+        <article><span>02</span><div><h3>章节抽取</h3><p>优先 JATS XML / HTML，PDF 补充；排除图表、参考文献和补充材料。</p></div></article>
+        <article><span>03</span><div><h3>候选召回</h3><p>依据评价词项和九类起始型式高召回检索，并保留前后句。</p></div></article>
+        <article><span>04</span><div><h3>人工标注</h3><p>依次标注语法型式、功能成分和语义参数，记录 No-eval 与不确定项。</p></div></article>
+      </div>
+      <div class="framework-grid">
+        <article class="framework-card pattern"><p class="card-no">LAYER 01</p><h3>语法型式</h3><p>形式层回答评价通过何种结构实现。</p><ul><li>n v-link ADJ</li><li>ADJ n</li><li>it v-link ADJ that/to-inf</li><li>V n as ADJ/n</li><li>+ 5 类起始型式</li></ul></article>
+        <article class="framework-card function"><p class="card-no">LAYER 02</p><h3>功能成分</h3><p>功能层描述评价事件内部的参与角色。</p><div class="token-cloud"><span>EC</span><span>EE</span><span>HINGE</span><span>EV</span><span>RESTR</span><span>MOD</span></div></article>
+        <article class="framework-card semantic"><p class="card-no">LAYER 03</p><h3>语义参数</h3><p>意义层说明评价什么，以及沿何种价值维度评价。</p><dl><dt>EE</dt><dd>proposition · entity · person</dd><dt>EC</dt><dd>importance · validity · quality · expectedness</dd></dl></article>
+      </div>
+      <div class="method-note"><span class="material-symbols-rounded">verified</span><div><h3>质量边界</h3><p>240 个 DOI 唯一；每篇均含可识别方法章节与目标章节。主分析集为四学科 160 篇，医学与环境科学 80 篇作为扩展验证。正式标签须在 pilot 后冻结，目标一致性 ≥ 0.80。</p></div></div>
+    </section>
+  </main>
+
+  <footer><div><strong>EL · Corpus</strong><p>English Research Article Evaluative Language Corpus</p></div><p>240 documents · 424 sections · 6 disciplines</p></footer>
+
+  <dialog id="articleDialog" class="article-dialog">
+    <div class="dialog-frame">
+      <button class="dialog-close" id="dialogClose" aria-label="关闭"><span class="material-symbols-rounded">close</span></button>
+      <div id="dialogContent"></div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"><span class="material-symbols-rounded">check_circle</span><span></span></div>
+  <script src="./corpus-data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
