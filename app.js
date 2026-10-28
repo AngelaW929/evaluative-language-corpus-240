@@ -16,6 +16,18 @@
   const debounce = (fn, wait = 160) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); }; };
   const subjectColor = subject => palette[subject] || '#607080';
   const sectionSentences = section => section.p.flat();
+  const sectionCode = type => ({ Results: 'RES', Discussion: 'DIS', 'Results and Discussion': 'RAD' }[type] || 'SEC');
+  const sentenceId = (doc, section, sectionIndex, paragraphIndex, sentenceIndex) =>
+    `${doc.id}-${sectionCode(section.t)}-C${String(sectionIndex + 1).padStart(2, '0')}-P${String(paragraphIndex + 1).padStart(2, '0')}-S${String(sentenceIndex + 1).padStart(2, '0')}`;
+  function indexedSectionSentences(doc, section, sectionIndex) {
+    const rows = [];
+    section.p.forEach((paragraph, paragraphIndex) => paragraph.forEach((text, sentenceIndex) => rows.push({
+      id: sentenceId(doc, section, sectionIndex, paragraphIndex, sentenceIndex), doc, type: section.t,
+      sectionIndex, paragraphIndex, sentenceIndex, sectionSentenceIndex: rows.length, text
+    })));
+    return rows.map((row, index) => ({ ...row, prev: rows[index - 1]?.text || '', next: rows[index + 1]?.text || '' }));
+  }
+  const documentSentenceRows = doc => doc.c.flatMap((section, sectionIndex) => indexedSectionSentences(doc, section, sectionIndex));
   const docText = doc => `${doc.t} ${doc.au} ${doc.doi} ${doc.j} ${doc.c.flatMap(s => sectionSentences(s)).join(' ')}`.toLowerCase();
   docs.forEach(doc => { doc._search = docText(doc); });
 
@@ -113,13 +125,15 @@
     const start = (state.page - 1) * state.pageSize;
     const pageDocs = filtered.slice(start, start + state.pageSize);
     $('articleCount').textContent = filtered.length.toLocaleString('zh-CN');
+    const filteredSentenceTotal = filtered.reduce((sum, doc) => sum + doc.c.reduce((sectionSum, section) => sectionSum + sectionSentences(section).length, 0), 0);
+    $('filteredSentenceCount').textContent = filteredSentenceTotal.toLocaleString('zh-CN');
     $('articleGrid').innerHTML = pageDocs.map(doc => `
       <article class="article-card" data-doc="${doc.id}" tabindex="0" style="--subject-color:${subjectColor(doc.s)}">
         <div class="card-topline"><span class="doc-id">${doc.id}</span><span class="set-badge">${doc.a === 'main_4disciplines_160' ? '主分析集' : '扩展集'}</span></div>
         <h3>${highlight(doc.t, state.query)}</h3>
         <p class="journal-line">${escapeHtml(doc.j)} · ${escapeHtml(doc.s)}</p>
         <p class="snippet">${findSnippet(doc)}</p>
-        <div class="card-bottom"><div class="section-badges">${doc.c.map(sec => `<span>${escapeHtml(sec.t)}</span>`).join('')}</div><span class="year">${doc.y}</span></div>
+        <div class="card-bottom"><div class="section-badges">${doc.c.map(sec => `<span>${escapeHtml(sec.t)} · ${sectionSentences(sec).length} 句</span>`).join('')}</div><span class="year">${doc.y}</span></div>
       </article>`).join('');
     $('articleEmpty').hidden = filtered.length !== 0;
     $('articleGrid').hidden = filtered.length === 0;
@@ -146,9 +160,17 @@
   function openArticle(id) {
     const doc = docs.find(d => d.id === id);
     if (!doc) return;
-    const sections = doc.c.map(sec => {
-      const sentenceCount = sec.p.reduce((n,p)=>n+p.length,0);
-      return `<section class="section-block"><div class="section-heading"><h3>${escapeHtml(sec.t)}</h3><span>${sentenceCount} 句</span></div>${sec.p.map(p => `<p>${highlight(p.join(' '), state.query)}</p>`).join('')}</section>`;
+    const articleSentenceRows = documentSentenceRows(doc);
+    const sections = doc.c.map((sec, sectionIndex) => {
+      const rows = indexedSectionSentences(doc, sec, sectionIndex);
+      return `<section class="section-block">
+        <div class="section-heading"><div><h3>${escapeHtml(sec.t)}</h3><p>章节 ${sectionIndex + 1} · ${rows.length} 句</p></div><button class="section-export" data-export-section="${sectionIndex}"><span class="material-symbols-rounded">download</span>导出本节</button></div>
+        <div class="sentence-list">${rows.map(row => `<article class="sentence-row" id="${row.id}" data-sentence-id="${row.id}">
+          <div class="sentence-ref"><strong>${row.id}</strong><span>章节第 ${row.sectionSentenceIndex + 1} 句 · 段落 ${row.paragraphIndex + 1}</span></div>
+          <p>${highlight(row.text, state.query)}</p>
+          <button class="sentence-copy" data-copy-sentence="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button>
+        </article>`).join('')}</div>
+      </section>`;
     }).join('');
     $('dialogContent').innerHTML = `
       <p class="dialog-kicker">${doc.id} · ${escapeHtml(doc.s)} · ${doc.y}</p>
@@ -158,11 +180,21 @@
         <div><dt>期刊</dt><dd>${escapeHtml(doc.j)}</dd></div><div><dt>DOI</dt><dd>${escapeHtml(doc.doi)}</dd></div><div><dt>研究类型</dt><dd>${escapeHtml(doc.m)}</dd></div>
         <div><dt>索引</dt><dd>${escapeHtml(doc.i)}</dd></div><div><dt>开放许可</dt><dd>${escapeHtml(doc.l)}</dd></div><div><dt>分析集合</dt><dd>${doc.a === 'main_4disciplines_160' ? '四学科主分析集' : '扩展验证集'}</dd></div>
       </dl>
-      <div class="dialog-tools"><a href="${escapeHtml(doc.u)}" target="_blank" rel="noopener"><span class="material-symbols-rounded">open_in_new</span>查看全文</a><button data-copy-citation="${doc.id}"><span class="material-symbols-rounded">content_copy</span>复制引文</button><button data-copy-doi="${doc.doi}"><span class="material-symbols-rounded">fingerprint</span>复制 DOI</button></div>
+      <div class="dialog-tools"><a href="${escapeHtml(doc.u)}" target="_blank" rel="noopener"><span class="material-symbols-rounded">open_in_new</span>查看全文</a><button data-copy-citation="${doc.id}"><span class="material-symbols-rounded">content_copy</span>复制引文</button><button data-copy-doi="${doc.doi}"><span class="material-symbols-rounded">fingerprint</span>复制 DOI</button><button data-export-article="${doc.id}"><span class="material-symbols-rounded">table_view</span>导出本文句级 CSV</button></div>
+      <div class="sentence-mode-note"><span class="material-symbols-rounded">segment</span><div><strong>句级精确模式</strong><p>每句均保留章节、段落和句内位置，并分配可复核的稳定 ID。点击句子右侧图标可复制“句级 ID + 原文”。</p></div></div>
       ${sections}`;
     $('articleDialog').showModal();
     $('dialogContent').querySelector('[data-copy-citation]').addEventListener('click', () => copyText(`${doc.au} (${doc.y}). ${doc.t}. ${doc.j}. https://doi.org/${doc.doi}`));
     $('dialogContent').querySelector('[data-copy-doi]').addEventListener('click', () => copyText(doc.doi));
+    $('dialogContent').querySelector('[data-export-article]').addEventListener('click', () => exportSentenceRows(`${doc.id}_sentences.csv`, articleSentenceRows));
+    $('dialogContent').querySelectorAll('[data-export-section]').forEach(button => button.addEventListener('click', () => {
+      const sectionIndex = Number(button.dataset.exportSection);
+      exportSentenceRows(`${doc.id}_${sectionCode(doc.c[sectionIndex].t)}_sentences.csv`, indexedSectionSentences(doc, doc.c[sectionIndex], sectionIndex));
+    }));
+    $('dialogContent').querySelectorAll('[data-copy-sentence]').forEach(button => button.addEventListener('click', () => {
+      const row = articleSentenceRows.find(item => item.id === button.dataset.copySentence);
+      if (row) copyText(`${row.id}\n${row.text}`);
+    }));
   }
   $('dialogClose').addEventListener('click', () => $('articleDialog').close());
   $('articleDialog').addEventListener('click', e => { if (e.target === $('articleDialog')) $('articleDialog').close(); });
@@ -193,9 +225,7 @@
   document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); switchView('library'); $('articleSearch').focus(); } });
 
   function flattenSentences() {
-    const rows = [];
-    docs.forEach(doc => doc.c.forEach(sec => sec.p.forEach(paragraph => paragraph.forEach((sentence, index) => rows.push({ doc, type: sec.t, text: sentence, prev: index ? paragraph[index-1] : '', next: index + 1 < paragraph.length ? paragraph[index+1] : '' })))));
-    return rows;
+    return docs.flatMap(documentSentenceRows);
   }
   const sentenceIndex = flattenSentences();
 
@@ -214,7 +244,11 @@
     });
     state.concordance = all;
     $('concordanceSummary').innerHTML = `<strong>${all.length.toLocaleString('zh-CN')} 条命中</strong><span>当前展示前 ${Math.min(100, all.length)} 条</span>`;
-    $('kwicList').innerHTML = all.slice(0,100).map(row => `<article class="kwic-item" style="--subject-color:${subjectColor(row.doc.s)}"><div class="kwic-meta"><strong>${escapeHtml(row.doc.s)} · ${escapeHtml(row.type)}</strong>${row.doc.id}<br/>${escapeHtml(row.doc.j)}<br/>${row.doc.y}</div><div class="kwic-context"><p class="neighbor">${escapeHtml(row.prev)}</p><p class="target">${highlight(row.text, query)}</p><p class="neighbor">${escapeHtml(row.next)}</p></div></article>`).join('');
+    $('kwicList').innerHTML = all.slice(0,100).map(row => `<article class="kwic-item" style="--subject-color:${subjectColor(row.doc.s)}"><div class="kwic-meta"><strong>${escapeHtml(row.doc.s)} · ${escapeHtml(row.type)}</strong><b>${row.id}</b>${escapeHtml(row.doc.j)}<br/>${row.doc.y}</div><div class="kwic-context"><p class="neighbor"><span>前句</span>${escapeHtml(row.prev)}</p><div class="kwic-target-line"><p class="target">${highlight(row.text, query)}</p><button data-copy-concordance="${row.id}" aria-label="复制 ${row.id}"><span class="material-symbols-rounded">content_copy</span></button></div><p class="neighbor"><span>后句</span>${escapeHtml(row.next)}</p></div></article>`).join('');
+    $('kwicList').querySelectorAll('[data-copy-concordance]').forEach(button => button.addEventListener('click', () => {
+      const row = all.find(item => item.id === button.dataset.copyConcordance);
+      if (row) copyText(`${row.id}\n${row.text}`);
+    }));
   }
   $('runConcordance').addEventListener('click', runConcordance);
   $('concordanceSearch').addEventListener('keydown', e => { if (e.key === 'Enter') runConcordance(); });
@@ -227,6 +261,12 @@
     const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
     const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   }
+  function exportSentenceRows(filename, rows) {
+    downloadCsv(filename,
+      ['sentence_id','doc_id','analysis_set','subject','journal','year','doi','section_type','section_index','section_sentence_index','paragraph_index','sentence_in_paragraph','previous_sentence','sentence_text','next_sentence'],
+      rows.map(row => [row.id,row.doc.id,row.doc.a,row.doc.s,row.doc.j,row.doc.y,row.doc.doi,row.type,row.sectionIndex + 1,row.sectionSentenceIndex + 1,row.paragraphIndex + 1,row.sentenceIndex + 1,row.prev,row.text,row.next]));
+    showToast(`已导出 ${rows.length.toLocaleString('zh-CN')} 个句子`);
+  }
   $('downloadMetadata').addEventListener('click', () => {
     const data = filteredDocs();
     downloadCsv('corpus_metadata.csv', ['doc_id','analysis_set','subject','journal','year','doi','title','authors','section_types'], data.map(d => [d.id,d.a,d.s,d.j,d.y,d.doi,d.t,d.au,d.c.map(s=>s.t).join('|')]));
@@ -234,8 +274,12 @@
   });
   $('exportConcordance').addEventListener('click', () => {
     if (!state.concordance.length) { showToast('请先执行语境检索'); return; }
-    downloadCsv('concordance_results.csv', ['doc_id','subject','journal','year','doi','section_type','previous_sentence','target_sentence','next_sentence'], state.concordance.map(r => [r.doc.id,r.doc.s,r.doc.j,r.doc.y,r.doc.doi,r.type,r.prev,r.text,r.next]));
+    downloadCsv('concordance_results.csv', ['sentence_id','doc_id','subject','journal','year','doi','section_type','section_index','paragraph_index','sentence_in_paragraph','previous_sentence','target_sentence','next_sentence'], state.concordance.map(r => [r.id,r.doc.id,r.doc.s,r.doc.j,r.doc.y,r.doc.doi,r.type,r.sectionIndex + 1,r.paragraphIndex + 1,r.sentenceIndex + 1,r.prev,r.text,r.next]));
     showToast(`已导出 ${state.concordance.length} 条语境`);
+  });
+  $('downloadSentences').addEventListener('click', () => {
+    const selectedDocs = filteredDocs();
+    exportSentenceRows('corpus_sentences_filtered.csv', selectedDocs.flatMap(documentSentenceRows));
   });
 
   renderArticles();

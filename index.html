@@ -67,6 +67,10 @@
           <input id="articleSearch" type="search" autocomplete="off" placeholder="搜索题名、作者、DOI 或章节正文…" />
           <kbd>⌘ K</kbd>
         </div>
+        <div class="sentence-data-strip">
+          <div><span class="material-symbols-rounded">segment</span><p><strong><span id="filteredSentenceCount">34,520</span> 个句子</strong><small>当前筛选范围 · 每句带稳定 ID 与上下文</small></p></div>
+          <button id="downloadSentences"><span class="material-symbols-rounded">download</span>导出当前句级语料</button>
+        </div>
         <div class="results-meta">
           <div><p class="overline">CORPUS LIBRARY</p><h2><span id="articleCount">240</span> 篇文章</h2></div>
           <div class="sort-control"><label for="sortArticles">排序</label><select id="sortArticles"><option value="corpus">语料库顺序</option><option value="yearDesc">年份：新到旧</option><option value="yearAsc">年份：旧到新</option><option value="title">题名字母序</option></select></div>
@@ -82,7 +86,7 @@
       <div class="concordance-intro">
         <p class="overline">CONCORDANCE</p>
         <h2>在 34,520 个句子中<br/>定位评价语境</h2>
-        <p>输入词项或短语，查看目标句及前后句。结果保留文档、章节、学科和期刊映射，便于人工判定评价义与 No-eval。</p>
+        <p>输入词项或短语，查看目标句及前后句。每条结果包含稳定句级 ID、章节和段落位置，便于精确引用、人工判定评价义与 No-eval。</p>
         <div class="query-examples"><button data-query="important">important</button><button data-query="significant">significant</button><button data-query="surprisingly">surprisingly</button><button data-query="it is clear">it is clear</button></div>
       </div>
       <div class="concordance-main">
@@ -110,7 +114,7 @@
       </div>
       <div class="pipeline">
         <article><span>01</span><div><h3>语料抽样</h3><p>6 学科 × 2 本期刊 × 每刊 20 篇，年份覆盖 2023—2026。</p></div></article>
-        <article><span>02</span><div><h3>章节抽取</h3><p>优先 JATS XML / HTML，PDF 补充；排除图表、参考文献和补充材料。</p></div></article>
+        <article><span>02</span><div><h3>章节抽取与分句</h3><p>优先 JATS XML / HTML，PDF 补充；排除图表、参考文献和补充材料，并生成“文档—章节—段落—句子”稳定 ID。</p></div></article>
         <article><span>03</span><div><h3>候选召回</h3><p>依据评价词项和九类起始型式高召回检索，并保留前后句。</p></div></article>
         <article><span>04</span><div><h3>人工标注</h3><p>依次标注语法型式、功能成分和语义参数，记录 No-eval 与不确定项。</p></div></article>
       </div>
@@ -119,7 +123,7 @@
         <article class="framework-card function"><p class="card-no">LAYER 02</p><h3>功能成分</h3><p>功能层描述评价事件内部的参与角色。</p><div class="token-cloud"><span>EC</span><span>EE</span><span>HINGE</span><span>EV</span><span>RESTR</span><span>MOD</span></div></article>
         <article class="framework-card semantic"><p class="card-no">LAYER 03</p><h3>语义参数</h3><p>意义层说明评价什么，以及沿何种价值维度评价。</p><dl><dt>EE</dt><dd>proposition · entity · person</dd><dt>EC</dt><dd>importance · validity · quality · expectedness</dd></dl></article>
       </div>
-      <div class="method-note"><span class="material-symbols-rounded">verified</span><div><h3>质量边界</h3><p>240 个 DOI 唯一；每篇均含可识别方法章节与目标章节。主分析集为四学科 160 篇，医学与环境科学 80 篇作为扩展验证。正式标签须在 pilot 后冻结，目标一致性 ≥ 0.80。</p></div></div>
+      <div class="method-note"><span class="material-symbols-rounded">verified</span><div><h3>质量边界</h3><p>240 个 DOI 唯一；34,520 个句子均映射回文档、章节与段落。主分析集为四学科 160 篇，医学与环境科学 80 篇作为扩展验证。正式标签须在 pilot 后冻结，目标一致性 ≥ 0.80。</p></div></div>
     </section>
   </main>
 
